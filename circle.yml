@@ -11,29 +11,35 @@ machine:
 
 general:
   branches:
-    ignore:
-      - /.*\/.*/
+#    ignore:
+#      - /.*\/.*/
+    only:
+      - s/circleci
 
 checkout:
   post:
     - git submodule sync
     - git submodule update --init
 
+# compile here so all dependencies are resolved and cached
 dependencies:
   override:
-    - export TERM="dumb"; ./gradlew compileTestJava
+    - export TERM="dumb"; ./gradlew compileTestJava; ./gradlew :blackbox:bootstrap
   cache_directories:
     - ~/.gradle
+    - blackbox/.venv
+    - ~/.cache
 
 test:
   pre:
     - ulimit -u 65535
   override:
-    - ./gradlew -s test
-    - ./gradlew -s itest
-    - ./gradlew -s forbiddenApisMain
-    - ./gradlew -s pmdMain
-    - ./blackbox/.venv/bin/sphinx-build -n -W -c docs/ -b html -E blackbox/docs/ docs/out/html
+    - find */src/test -name '*Test.java' | sort | awk "NR % ${CIRCLE_NODE_TOTAL} == ${CIRCLE_NODE_INDEX}" | sed  's/.*\/src\/test\/java\/\(.*\)\.java/\1/g' | sed 's/\//\./g' | sed "s/^/--tests /" | tr "\n" " " | ./gradlew -s test:
+        parallel: true
+    - i=0; for task in itest pmdMain forbiddenApisMain buildDocs; do if [ $(($i % ${CIRCLE_NODE_TOTAL})) -eq ${CIRCLE_NODE_INDEX} ]; then ./gradlew -s $task; fi; ((i++)); done:
+        parallel: true
   post:
     - ./gradlew jacocoReport
     - bash <(curl -s https://codecov.io/bash)
+    - mkdir -p $CIRCLE_TEST_REPORTS/junit/
+    - find . -type f -regex ".*/build/test-results/.*xml" -exec cp {} $CIRCLE_TEST_REPORTS/junit/ \;
