@@ -58,10 +58,7 @@ public class DocIndexMetaData {
 
     private static final String ID = "_id";
     private final IndexMetaData metaData;
-
-    private final MappingMetaData defaultMappingMetaData;
-    private final Map<String, Object> defaultMappingMap;
-
+    private final Map<String, Object> mappingMap;
     private final Map<ColumnIdent, IndexReference.Builder> indicesBuilder = new HashMap<>();
 
     private final ImmutableSortedSet.Builder<Reference> columnsBuilder = ImmutableSortedSet.orderedBy(new Comparator<Reference>() {
@@ -109,15 +106,10 @@ public class DocIndexMetaData {
         Settings settings = metaData.getSettings();
         this.numberOfReplicas = NumberOfReplicas.fromSettings(settings);
         this.aliases = ImmutableSet.copyOf(metaData.getAliases().keys().toArray(String.class));
-        this.defaultMappingMetaData = this.metaData.mappingOrDefault(Constants.DEFAULT_MAPPING_TYPE);
-        if (defaultMappingMetaData == null) {
-            this.defaultMappingMap = ImmutableMap.of();
-        } else {
-            this.defaultMappingMap = this.defaultMappingMetaData.sourceAsMap();
-        }
+        this.mappingMap = getMappingMap(metaData);
         this.tableParameters = TableParameterInfo.tableParametersFromIndexMetaData(metaData);
 
-        Map<String, Object> metaMap = getNested(defaultMappingMap, "_meta");
+        Map<String, Object> metaMap = getNested(mappingMap, "_meta");
         indicesMap = getNested(metaMap, "indices", ImmutableMap.<String, Object>of());
         partitionedByList = getNested(metaMap, "partitioned_by", ImmutableList.<List<String>>of());
         generatedColumns = getNested(metaMap, "generated_columns", ImmutableMap.<String, String>of());
@@ -126,6 +118,19 @@ public class DocIndexMetaData {
         } else {
             supportedOperations = Operation.buildFromIndexSettings(metaData.getSettings());
         }
+    }
+
+    public static Map<String, Object> getMappingMap(IndexMetaData metaData) throws IOException {
+        MappingMetaData mappingMetaData = metaData.mappingOrDefault(Constants.DEFAULT_MAPPING_TYPE);
+        if (mappingMetaData == null) {
+            return ImmutableMap.of();
+        } else {
+            return mappingMetaData.sourceAsMap();
+        }
+    }
+
+    public static String getRoutingHashFunctionType(Map<String, Object> mappingMap) {
+        return getNested(mappingMap, "routing_hash_function_type");
     }
 
     @SuppressWarnings("unchecked")
@@ -359,7 +364,7 @@ public class DocIndexMetaData {
     }
 
     private ImmutableList<ColumnIdent> getPrimaryKey() {
-        Map<String, Object> metaMap = getNested(defaultMappingMap, "_meta");
+        Map<String, Object> metaMap = getNested(mappingMap, "_meta");
         if (metaMap != null) {
             ImmutableList.Builder<ColumnIdent> builder = ImmutableList.builder();
             Object pKeys = metaMap.get("primary_keys");
@@ -386,7 +391,7 @@ public class DocIndexMetaData {
     }
 
     private ImmutableCollection<ColumnIdent> getNotNullColumns() {
-        Map<String, Object> metaMap = getNested(defaultMappingMap, "_meta");
+        Map<String, Object> metaMap = getNested(mappingMap, "_meta");
         if (metaMap != null) {
             ImmutableSet.Builder<ColumnIdent> builder = ImmutableSet.builder();
             Map<String, Object> constraintsMap = getNested(metaMap, "constraints");
@@ -415,11 +420,11 @@ public class DocIndexMetaData {
     }
 
     private ColumnPolicy getColumnPolicy() {
-        return ColumnPolicy.of(defaultMappingMap.get("dynamic"));
+        return ColumnPolicy.of(mappingMap.get("dynamic"));
     }
 
     private void createColumnDefinitions() {
-        Map<String, Object> propertiesMap = getNested(defaultMappingMap, "properties");
+        Map<String, Object> propertiesMap = getNested(mappingMap, "properties");
         internalExtractColumnDefinitions(null, propertiesMap);
         extractPartitionedByColumns();
     }
@@ -440,8 +445,8 @@ public class DocIndexMetaData {
     }
 
     private ColumnIdent getCustomRoutingCol() {
-        if (defaultMappingMetaData != null) {
-            Map<String, Object> metaMap = getNested(defaultMappingMap, "_meta");
+        if (mappingMap.size() > 0) {
+            Map<String, Object> metaMap = getNested(mappingMap, "_meta");
             if (metaMap != null) {
                 String routingPath = (String) metaMap.get("routing");
                 if (routingPath != null && !routingPath.equals(ID)) {
@@ -565,7 +570,7 @@ public class DocIndexMetaData {
                     other.ident).build();
             } else if (references().size() == other.references().size() &&
                        !references().keySet().equals(other.references().keySet())) {
-                XContentHelper.update(defaultMappingMap, other.defaultMappingMap, false);
+                XContentHelper.update(mappingMap, other.mappingMap, false);
                 // update the template with new information
                 updateTemplate(this, transportPutIndexTemplateAction, this.metaData.getSettings());
                 return this;
@@ -582,7 +587,7 @@ public class DocIndexMetaData {
                                 Settings updateSettings) {
         String templateName = PartitionName.templateName(ident.schema(), ident.name());
         PutIndexTemplateRequest request = new PutIndexTemplateRequest(templateName)
-            .mapping(Constants.DEFAULT_MAPPING_TYPE, md.defaultMappingMap)
+            .mapping(Constants.DEFAULT_MAPPING_TYPE, md.mappingMap)
             .create(false)
             .settings(updateSettings)
             .template(templateName + "*");
@@ -654,7 +659,7 @@ public class DocIndexMetaData {
     }
 
     public ImmutableMap<ColumnIdent, String> analyzers() {
-        Map<String, Object> propertiesMap = getNested(defaultMappingMap, "properties");
+        Map<String, Object> propertiesMap = getNested(mappingMap, "properties");
         if (propertiesMap == null) {
             return ImmutableMap.of();
         } else {

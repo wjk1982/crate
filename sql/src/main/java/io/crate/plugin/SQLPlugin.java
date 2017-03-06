@@ -36,6 +36,7 @@ import io.crate.lucene.CrateIndexModule;
 import io.crate.metadata.MetaDataModule;
 import io.crate.metadata.Schemas;
 import io.crate.metadata.blob.MetaDataBlobModule;
+import io.crate.metadata.doc.IndexMetaDataUpgradeService;
 import io.crate.metadata.information.MetaDataInformationModule;
 import io.crate.metadata.pg_catalog.PgCatalogModule;
 import io.crate.metadata.settings.CrateSettings;
@@ -113,7 +114,8 @@ public class SQLPlugin extends Plugin {
             PostgresNetty.class,
             JobContextService.class,
             Schemas.class,
-            SysRepositoriesService.class);
+            SysRepositoriesService.class,
+            IndexMetaDataUpgradeService.class);
     }
 
     @Override
