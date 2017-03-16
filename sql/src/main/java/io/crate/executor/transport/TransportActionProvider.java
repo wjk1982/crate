@@ -25,6 +25,7 @@ import io.crate.action.job.TransportJobAction;
 import io.crate.executor.transport.kill.TransportKillAllNodeAction;
 import io.crate.executor.transport.kill.TransportKillJobsNodeAction;
 import io.crate.operation.udf.TransportCreateUserDefinedFunctionAction;
+import io.crate.operation.udf.TransportDropUserDefinedFunctionAction;
 import org.elasticsearch.action.admin.cluster.settings.TransportClusterUpdateSettingsAction;
 import org.elasticsearch.action.admin.cluster.snapshots.create.TransportCreateSnapshotAction;
 import org.elasticsearch.action.admin.cluster.snapshots.delete.TransportDeleteSnapshotAction;
@@ -72,6 +73,7 @@ public class TransportActionProvider {
     private final Provider<TransportGetSnapshotsAction> transportGetSnapshotsActionProvider;
 
     private final Provider<TransportCreateUserDefinedFunctionAction> transportCreateUserDefinedFunctionActionProvider;
+    private final Provider<TransportDropUserDefinedFunctionAction> transportDropUserDefinedFunctionActionProvider;
 
     @Inject
     public TransportActionProvider(Provider<TransportFetchNodeAction> transportFetchNodeActionProvider,
@@ -95,7 +97,8 @@ public class TransportActionProvider {
                                    Provider<TransportCreateSnapshotAction> transportCreateSnapshotActionProvider,
                                    Provider<TransportRestoreSnapshotAction> transportRestoreSnapshotActionProvider,
                                    Provider<TransportGetSnapshotsAction> transportGetSnapshotsActionPovider,
-                                   Provider<TransportCreateUserDefinedFunctionAction> transportCreateUserDefinedFunctionActionProvider) {
+                                   Provider<TransportCreateUserDefinedFunctionAction> transportCreateUserDefinedFunctionActionProvider,
+                                   Provider<TransportDropUserDefinedFunctionAction> transportDropUserDefinedFunctionActionProvider) {
         this.transportCreateIndexActionProvider = transportCreateIndexActionProvider;
         this.transportDeleteIndexActionProvider = transportDeleteIndexActionProvider;
         this.transportPutIndexTemplateActionProvider = transportPutIndexTemplateActionProvider;
@@ -118,6 +121,7 @@ public class TransportActionProvider {
         this.transportRestoreSnapshotActionProvider = transportRestoreSnapshotActionProvider;
         this.transportGetSnapshotsActionProvider = transportGetSnapshotsActionPovider;
         this.transportCreateUserDefinedFunctionActionProvider = transportCreateUserDefinedFunctionActionProvider;
+        this.transportDropUserDefinedFunctionActionProvider = transportDropUserDefinedFunctionActionProvider;
     }
 
     public TransportCreateIndexAction transportCreateIndexAction() {
@@ -206,5 +210,9 @@ public class TransportActionProvider {
 
     public TransportCreateUserDefinedFunctionAction transportCreateUserDefinedFunctionAction() {
         return transportCreateUserDefinedFunctionActionProvider.get();
+    }
+
+    public TransportDropUserDefinedFunctionAction transportDropUserDefinedFunctionAction() {
+        return transportDropUserDefinedFunctionActionProvider.get();
     }
 }

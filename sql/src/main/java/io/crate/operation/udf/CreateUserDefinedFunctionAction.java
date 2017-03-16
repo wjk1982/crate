@@ -31,7 +31,7 @@ import org.elasticsearch.action.Action;
 import org.elasticsearch.client.ElasticsearchClient;
 
 public class CreateUserDefinedFunctionAction extends
-    Action<CreateUserDefinedFunctionRequest, CreateUserDefinedFunctionResponse, CreateUserDefinedFunctionRequest.RequestBuilder> {
+    Action<CreateUserDefinedFunctionRequest, TransportUserDefinedFunctionResponse, CreateUserDefinedFunctionRequest.RequestBuilder> {
 
     public static final CreateUserDefinedFunctionAction INSTANCE = new CreateUserDefinedFunctionAction();
     public static final String NAME = "create_udf";
@@ -46,7 +46,7 @@ public class CreateUserDefinedFunctionAction extends
     }
 
     @Override
-    public CreateUserDefinedFunctionResponse newResponse() {
-        return new CreateUserDefinedFunctionResponse();
+    public TransportUserDefinedFunctionResponse newResponse() {
+        return new TransportUserDefinedFunctionResponse();
     }
 }

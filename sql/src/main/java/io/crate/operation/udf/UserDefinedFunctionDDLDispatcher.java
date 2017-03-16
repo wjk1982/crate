@@ -22,6 +22,7 @@
 package io.crate.operation.udf;
 
 import io.crate.analyze.CreateFunctionAnalyzedStatement;
+import io.crate.analyze.DropFunctionAnalyzedStatement;
 import io.crate.analyze.expressions.ExpressionToStringVisitor;
 import io.crate.data.Row;
 import io.crate.executor.transport.TransportActionProvider;
@@ -54,9 +55,9 @@ public class UserDefinedFunctionDDLDispatcher {
         CreateUserDefinedFunctionRequest request = new CreateUserDefinedFunctionRequest(metaData, statement.replace());
         transportActionProvider.transportCreateUserDefinedFunctionAction().execute(
             request,
-            new ActionListener<CreateUserDefinedFunctionResponse>() {
+            new ActionListener<TransportUserDefinedFunctionResponse>() {
                 @Override
-                public void onResponse(CreateUserDefinedFunctionResponse createUserDefinedFunctionResponse) {
+                public void onResponse(TransportUserDefinedFunctionResponse transportUserDefinedFunctionResponse) {
                     resultFuture.complete(1L);
                 }
 
@@ -66,6 +67,12 @@ public class UserDefinedFunctionDDLDispatcher {
                 }
             }
         );
+
+        return resultFuture;
+    }
+
+    public CompletableFuture<Long> dispatch(final DropFunctionAnalyzedStatement statement, Row params) {
+        final CompletableFuture<Long> resultFuture = new CompletableFuture<>();
 
         return resultFuture;
     }

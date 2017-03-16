@@ -82,14 +82,14 @@ public class CreateUserDefinedFunctionRequest extends MasterNodeRequest<CreateUs
     }
 
     static class RequestBuilder extends ActionRequestBuilder<CreateUserDefinedFunctionRequest,
-        CreateUserDefinedFunctionResponse, RequestBuilder> {
+        TransportUserDefinedFunctionResponse, RequestBuilder> {
 
         RequestBuilder(ElasticsearchClient client, CreateUserDefinedFunctionAction action) {
             super(client, action, new CreateUserDefinedFunctionRequest());
         }
 
         @Override
-        public void execute(ActionListener<CreateUserDefinedFunctionResponse> listener) {
+        public void execute(ActionListener<TransportUserDefinedFunctionResponse> listener) {
             client.execute(CreateUserDefinedFunctionAction.INSTANCE, request, listener);
         }
     }

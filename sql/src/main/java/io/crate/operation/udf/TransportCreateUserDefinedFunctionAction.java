@@ -40,7 +40,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
-public class TransportCreateUserDefinedFunctionAction extends TransportMasterNodeAction<CreateUserDefinedFunctionRequest, CreateUserDefinedFunctionResponse> {
+public class TransportCreateUserDefinedFunctionAction extends TransportMasterNodeAction<CreateUserDefinedFunctionRequest, TransportUserDefinedFunctionResponse> {
 
     private final UserDefinedFunctionService userDefinedFunctionService;
 
@@ -61,24 +61,23 @@ public class TransportCreateUserDefinedFunctionAction extends TransportMasterNod
     }
 
     @Override
-    protected CreateUserDefinedFunctionResponse newResponse() {
-        return new CreateUserDefinedFunctionResponse();
+    protected TransportUserDefinedFunctionResponse newResponse() {
+        return new TransportUserDefinedFunctionResponse();
     }
 
     @Override
     protected void masterOperation(final CreateUserDefinedFunctionRequest request,
-                                   ClusterState state, ActionListener<CreateUserDefinedFunctionResponse> listener) throws Exception {
+                                   ClusterState state, ActionListener<TransportUserDefinedFunctionResponse> listener) throws Exception {
         userDefinedFunctionService.registerFunction(
             new UserDefinedFunctionService.RegisterUserDefinedFunctionRequest(
                 "put_udf [" + request.userDefinedFunctionMetaData().name() + "]",
-                request.userDefinedFunctionMetaData().name(),
                 request.userDefinedFunctionMetaData(),
                 request.replace()
             ).masterNodeTimeout(request.masterNodeTimeout()),
             new ActionListener<ClusterStateUpdateResponse>() {
                 @Override
                 public void onResponse(ClusterStateUpdateResponse clusterStateUpdateResponse) {
-                    listener.onResponse(new CreateUserDefinedFunctionResponse(clusterStateUpdateResponse.isAcknowledged()));
+                    listener.onResponse(new TransportUserDefinedFunctionResponse(clusterStateUpdateResponse.isAcknowledged()));
                 }
 
                 @Override
