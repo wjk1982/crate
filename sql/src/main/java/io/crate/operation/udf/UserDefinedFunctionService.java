@@ -23,6 +23,7 @@ package io.crate.operation.udf;
 
 import com.google.common.annotations.VisibleForTesting;
 import io.crate.exceptions.UserDefinedFunctionAlreadyExistsException;
+import io.crate.exceptions.UserDefinedFunctionUnknownException;
 import io.crate.metadata.FunctionIdent;
 import io.crate.metadata.FunctionImplementation;
 import io.crate.metadata.Functions;
@@ -103,6 +104,31 @@ public class UserDefinedFunctionService extends AbstractLifecycleComponent<UserD
             });
     }
 
+    void dropFunction(final DropUserDefinedFunctionRequest request, final ActionListener<ClusterStateUpdateResponse> listener) {
+        if (!clusterService.localNode().isMasterNode()) {
+            return;
+        }
+        clusterService.submitStateUpdateTask(request.cause,
+            new AckedClusterStateUpdateTask<ClusterStateUpdateResponse>(request, listener) {
+
+            @Override
+            public ClusterState execute(ClusterState currentState) throws Exception {
+                MetaData metaData = currentState.metaData();
+                MetaData.Builder mdBuilder = MetaData.builder(currentState.metaData());
+                UserDefinedFunctionsMetaData functions = removeFunction(
+                    metaData.custom(UserDefinedFunctionsMetaData.TYPE),
+                    request.signature, request.ifExists);
+                mdBuilder.putCustom(UserDefinedFunctionsMetaData.TYPE, functions);
+                return ClusterState.builder(currentState).metaData(mdBuilder).build();
+            }
+
+            @Override
+            protected ClusterStateUpdateResponse newResponse(boolean acknowledged) {
+                return new ClusterStateUpdateResponse(acknowledged);
+            }
+        });
+    }
+
     @VisibleForTesting
     static UserDefinedFunctionsMetaData putFunction(@Nullable UserDefinedFunctionsMetaData oldMetaData,
                                                     UserDefinedFunctionMetaData functionMetaData,
@@ -116,6 +142,22 @@ public class UserDefinedFunctionService extends AbstractLifecycleComponent<UserD
             // create a new instance of the metadata, to guarantee the cluster changed action.
             UserDefinedFunctionsMetaData newMetaData = UserDefinedFunctionsMetaData.newInstance(oldMetaData);
             newMetaData.put(functionMetaData);
+            return newMetaData;
+        }
+    }
+
+    @VisibleForTesting
+    static UserDefinedFunctionsMetaData removeFunction(@Nullable UserDefinedFunctionsMetaData functions, Integer signature,
+                                                       boolean ifExists) {
+        if (!ifExists && (functions == null || !functions.contains(signature))) {
+            // throw udf doesn't exist
+            throw new UserDefinedFunctionUnknownException(signature);
+        } else if (functions == null) {
+            return UserDefinedFunctionsMetaData.of();
+        } else {
+            // create a new instance of the metadata, to guarantee the cluster changed action.
+            UserDefinedFunctionsMetaData newMetaData = UserDefinedFunctionsMetaData.newInstance(functions);
+            newMetaData.remove(signature);
             return newMetaData;
         }
     }
@@ -143,14 +185,25 @@ public class UserDefinedFunctionService extends AbstractLifecycleComponent<UserD
 
         private final UserDefinedFunctionMetaData metaData;
         private final String cause;
-        private final String name;
         private final boolean replace;
 
-        RegisterUserDefinedFunctionRequest(String cause, String name, UserDefinedFunctionMetaData metaData, boolean replace) {
+        RegisterUserDefinedFunctionRequest(String cause, UserDefinedFunctionMetaData metaData, boolean replace) {
             this.cause = cause;
-            this.name = name;
             this.metaData = metaData;
             this.replace = replace;
+        }
+    }
+
+    static class DropUserDefinedFunctionRequest extends ClusterStateUpdateRequest<DropUserDefinedFunctionRequest> {
+
+        Integer signature;
+        final String cause;
+        final boolean ifExists;
+
+        DropUserDefinedFunctionRequest(String cause, Integer signature, boolean ifExists) {
+            this.cause = cause;
+            this.signature = signature;
+            this.ifExists = ifExists;
         }
     }
 }
