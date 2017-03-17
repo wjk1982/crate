@@ -37,7 +37,11 @@ public class FutureActionListener<Response, Result> extends CompletableFuture<Re
 
     @Override
     public void onResponse(Response response) {
-        complete(transformFunction.apply(response));
+        try {
+            complete(transformFunction.apply(response));
+        } catch (Throwable t) {
+            completeExceptionally(t);
+        }
     }
 
     @Override

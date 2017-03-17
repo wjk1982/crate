@@ -353,7 +353,6 @@ public class ProjectionToProjectorVisitor
     @Override
     public Projector visitUpdateProjection(final UpdateProjection projection, Context context) {
         checkShardLevel("Update projection can only be executed on a shard");
-
         ShardUpsertRequest.Builder builder = new ShardUpsertRequest.Builder(
             CrateSettings.BULK_REQUEST_TIMEOUT.extractTimeValue(settings),
             false,
@@ -362,25 +361,16 @@ public class ProjectionToProjectorVisitor
             null,
             context.jobId
         );
-        BulkShardProcessor<ShardUpsertRequest> bulkShardProcessor = new BulkShardProcessor<>(
-            clusterService,
-            transportActionProvider.transportBulkCreateIndicesAction(),
-            indexNameExpressionResolver,
-            settings,
-            bulkRetryCoordinatorPool,
-            false, // autoCreateIndices -> can only update existing things
+        ShardRequestAccumulator<ShardUpsertRequest, ShardUpsertRequest.Item> shardRequestAccumulator = new ShardRequestAccumulator<>(
             BulkShardProcessor.DEFAULT_BULK_SIZE,
-            builder,
-            transportActionProvider.transportShardUpsertAction()::execute,
-            context.jobId
+            threadPool.scheduler(),
+            resolveUidCollectExpression(projection.uidSymbol()),
+            () -> builder.newRequest(shardId, null),
+            id -> new ShardUpsertRequest.Item(id, projection.assignments(), null, projection.requiredVersion()),
+            transportActionProvider.transportShardUpsertAction()::execute
         );
 
-        return new DMLProjector<>(
-            shardId,
-            resolveUidCollectExpression(projection.uidSymbol()),
-            bulkShardProcessor,
-            id -> new ShardUpsertRequest.Item(id, projection.assignments(), null, projection.requiredVersion())
-        );
+        return new DMLProjector(shardRequestAccumulator);
     }
 
     @Override
@@ -390,24 +380,15 @@ public class ProjectionToProjectorVisitor
             CrateSettings.BULK_REQUEST_TIMEOUT.extractTimeValue(settings),
             context.jobId
         );
-        BulkShardProcessor<ShardDeleteRequest> bulkShardProcessor = new BulkShardProcessor<>(
-            clusterService,
-            transportActionProvider.transportBulkCreateIndicesAction(),
-            indexNameExpressionResolver,
-            settings,
-            bulkRetryCoordinatorPool,
-            false,
+        ShardRequestAccumulator<ShardDeleteRequest, ShardDeleteRequest.Item> shardRequestAccumulator = new ShardRequestAccumulator<>(
             BulkShardProcessor.DEFAULT_BULK_SIZE,
-            builder,
-            transportActionProvider.transportShardDeleteAction()::execute,
-            context.jobId
-        );
-        return new DMLProjector<>(
-            shardId,
+            threadPool.scheduler(),
             resolveUidCollectExpression(projection.uidSymbol()),
-            bulkShardProcessor,
-            ShardDeleteRequest.Item::new
+            () -> builder.newRequest(shardId, null),
+            ShardDeleteRequest.Item::new,
+            transportActionProvider.transportShardDeleteAction()::execute
         );
+        return new DMLProjector(shardRequestAccumulator);
     }
 
     private void checkShardLevel(String errorMessage) {
