@@ -288,13 +288,12 @@ public class ProjectionToProjectorVisitor
             IndexNameResolver.create(projection.tableIdent(), projection.partitionIdent(), partitionedByInputs);
         return new IndexWriterProjector(
             clusterService,
+            threadPool.scheduler(),
             functions,
-            indexNameExpressionResolver,
             clusterService.state().metaData().settings(),
             transportActionProvider.transportBulkCreateIndicesAction(),
             transportActionProvider.transportShardUpsertAction()::execute,
             indexNameResolver,
-            bulkRetryCoordinatorPool,
             projection.rawSourceReference(),
             projection.primaryKeys(),
             projection.ids(),
@@ -324,12 +323,11 @@ public class ProjectionToProjectorVisitor
         }
         return new ColumnIndexWriterProjector(
             clusterService,
+            threadPool.scheduler(),
             functions,
-            indexNameExpressionResolver,
             clusterService.state().metaData().settings(),
             IndexNameResolver.create(projection.tableIdent(), projection.partitionIdent(), partitionedByInputs),
             transportActionProvider,
-            bulkRetryCoordinatorPool,
             projection.primaryKeys(),
             projection.ids(),
             projection.clusteredBy(),
