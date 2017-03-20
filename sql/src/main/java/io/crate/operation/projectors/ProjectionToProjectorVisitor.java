@@ -49,8 +49,6 @@ import io.crate.operation.reference.sys.RowContextReferenceResolver;
 import io.crate.operation.reference.sys.SysRowUpdater;
 import io.crate.planner.projection.*;
 import io.crate.types.StringType;
-import org.elasticsearch.action.bulk.BulkRetryCoordinatorPool;
-import org.elasticsearch.action.bulk.BulkShardProcessor;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.settings.Settings;
@@ -74,7 +72,6 @@ public class ProjectionToProjectorVisitor
     private final ThreadPool threadPool;
     private final Settings settings;
     private final TransportActionProvider transportActionProvider;
-    private final BulkRetryCoordinatorPool bulkRetryCoordinatorPool;
     private final InputFactory inputFactory;
     private final EvaluatingNormalizer normalizer;
     private final Function<TableIdent, SysRowUpdater<?>> sysUpdaterGetter;
@@ -87,7 +84,6 @@ public class ProjectionToProjectorVisitor
                                         ThreadPool threadPool,
                                         Settings settings,
                                         TransportActionProvider transportActionProvider,
-                                        BulkRetryCoordinatorPool bulkRetryCoordinatorPool,
                                         InputFactory inputFactory,
                                         EvaluatingNormalizer normalizer,
                                         Function<TableIdent, SysRowUpdater<?>> sysUpdaterGetter,
@@ -98,7 +94,6 @@ public class ProjectionToProjectorVisitor
         this.threadPool = threadPool;
         this.settings = settings;
         this.transportActionProvider = transportActionProvider;
-        this.bulkRetryCoordinatorPool = bulkRetryCoordinatorPool;
         this.inputFactory = inputFactory;
         this.normalizer = normalizer;
         this.sysUpdaterGetter = sysUpdaterGetter;
@@ -111,7 +106,6 @@ public class ProjectionToProjectorVisitor
                                         ThreadPool threadPool,
                                         Settings settings,
                                         TransportActionProvider transportActionProvider,
-                                        BulkRetryCoordinatorPool bulkRetryCoordinatorPool,
                                         InputFactory inputFactory,
                                         EvaluatingNormalizer normalizer,
                                         Function<TableIdent, SysRowUpdater<?>> sysUpdaterGetter) {
@@ -121,7 +115,6 @@ public class ProjectionToProjectorVisitor
             threadPool,
             settings,
             transportActionProvider,
-            bulkRetryCoordinatorPool,
             inputFactory,
             normalizer,
             sysUpdaterGetter,
@@ -360,7 +353,7 @@ public class ProjectionToProjectorVisitor
             context.jobId
         );
         ShardRequestAccumulator<ShardUpsertRequest, ShardUpsertRequest.Item> shardRequestAccumulator = new ShardRequestAccumulator<>(
-            BulkShardProcessor.DEFAULT_BULK_SIZE,
+            10_000,
             threadPool.scheduler(),
             resolveUidCollectExpression(projection.uidSymbol()),
             () -> builder.newRequest(shardId, null),
@@ -379,7 +372,7 @@ public class ProjectionToProjectorVisitor
             context.jobId
         );
         ShardRequestAccumulator<ShardDeleteRequest, ShardDeleteRequest.Item> shardRequestAccumulator = new ShardRequestAccumulator<>(
-            BulkShardProcessor.DEFAULT_BULK_SIZE,
+            10_000,
             threadPool.scheduler(),
             resolveUidCollectExpression(projection.uidSymbol()),
             () -> builder.newRequest(shardId, null),

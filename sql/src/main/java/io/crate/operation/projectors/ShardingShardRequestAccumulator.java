@@ -163,21 +163,26 @@ public class ShardingShardRequestAccumulator<TReq extends ShardRequest<TReq, TIt
         return bulkSize;
     }
 
-    @Override
-    public CompletableFuture<Iterator<? extends Row>> processBatch(boolean isLastBatch) {
+    private CompletableFuture<BitSet> execute(boolean isLastBatch) {
         if ((isLastBatch && pendingRequestsByIndex.isEmpty() == false)
             || pendingRequestsByIndex.size() > createIndicesBulkSize) {
 
-            return createPendingIndices().thenCompose(resp -> sendRequests(isLastBatch));
+            return createPendingIndices()
+                .thenCompose(resp -> sendRequests(isLastBatch));
         }
         return sendRequests(isLastBatch);
     }
 
-    private CompletableFuture<Iterator<? extends Row>> sendRequests(boolean isLastBatch) {
+    @Override
+    public CompletableFuture<Iterator<? extends Row>> processBatch(boolean isLastBatch) {
+        return execute(isLastBatch).thenApply(r -> createResultIt(isLastBatch));
+    }
+
+    private CompletableFuture<BitSet> sendRequests(boolean isLastBatch) {
         if (requestsByShard.isEmpty()) {
-            return CompletableFuture.completedFuture(createResultIt(isLastBatch));
+            return CompletableFuture.completedFuture(responses);
         }
-        CompletableFuture<Iterator<? extends Row>> result = new CompletableFuture<>();
+        CompletableFuture<BitSet> result = new CompletableFuture<>();
         AtomicInteger numRequests = new AtomicInteger(requestsByShard.size());
         for (Iterator<Map.Entry<ShardId, TReq>> it = requestsByShard.entrySet().iterator(); it.hasNext(); ) {
             Map.Entry<ShardId, TReq> entry = it.next();
@@ -199,7 +204,7 @@ public class ShardingShardRequestAccumulator<TReq extends ShardRequest<TReq, TIt
 
                 private void countdown() {
                     if (numRequests.decrementAndGet() == 0) {
-                        result.complete(createResultIt(isLastBatch));
+                        result.complete(responses);
                     }
                 }
             };

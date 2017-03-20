@@ -59,7 +59,6 @@ import io.crate.operation.tablefunctions.TableFunctionModule;
 import io.crate.protocols.postgres.PostgresNetty;
 import io.crate.rest.action.RestSQLAction;
 import org.elasticsearch.action.bulk.BulkModule;
-import org.elasticsearch.action.bulk.BulkRetryCoordinatorPool;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.settings.Validator;
 import org.elasticsearch.common.component.LifecycleComponent;
@@ -108,7 +107,6 @@ public class SQLPlugin extends Plugin {
     public Collection<Class<? extends LifecycleComponent>> nodeServices() {
         return ImmutableList.<Class<? extends LifecycleComponent>>of(
             DecommissioningService.class,
-            BulkRetryCoordinatorPool.class,
             NodeDisconnectJobMonitorService.class,
             PostgresNetty.class,
             JobContextService.class,

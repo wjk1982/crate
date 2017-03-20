@@ -34,7 +34,6 @@ import io.crate.operation.collect.collectors.BlobOrderedDocCollector;
 import io.crate.operation.collect.collectors.OrderedDocCollector;
 import io.crate.operation.reference.doc.blob.BlobReferenceResolver;
 import io.crate.planner.node.dql.RoutedCollectPhase;
-import org.elasticsearch.action.bulk.BulkRetryCoordinatorPool;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.settings.Settings;
@@ -53,10 +52,9 @@ public class BlobShardCollectorProvider extends ShardCollectorProvider {
                                       IndexNameExpressionResolver indexNameExpressionResolver,
                                       ThreadPool threadPool,
                                       Settings settings,
-                                      TransportActionProvider transportActionProvider,
-                                      BulkRetryCoordinatorPool bulkRetryCoordinatorPool) {
+                                      TransportActionProvider transportActionProvider) {
         super(clusterService, new BlobShardReferenceResolver(blobShard), functions, indexNameExpressionResolver, threadPool, settings,
-            transportActionProvider, bulkRetryCoordinatorPool, blobShard.indexShard());
+            transportActionProvider, blobShard.indexShard());
         inputFactory = new InputFactory(functions);
         this.blobShard = blobShard;
     }
