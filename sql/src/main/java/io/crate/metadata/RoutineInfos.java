@@ -22,11 +22,9 @@ package io.crate.metadata;
 
 import com.google.common.base.Function;
 import com.google.common.collect.Iterators;
-import io.crate.operation.udf.UserDefinedFunction;
 import io.crate.operation.udf.UserDefinedFunctionMetaData;
 import io.crate.operation.udf.UserDefinedFunctionsMetaData;
 import org.elasticsearch.cluster.ClusterService;
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
@@ -130,7 +128,7 @@ public class RoutineInfos implements Iterable<RoutineInfo> {
                 public RoutineInfo apply(UserDefinedFunctionMetaData input) {
                     assert input != null : "input must not be null";
                     return new RoutineInfo(input.name(),
-                        RoutineType.FUNCTION.getName(), input.schema(), input.definition(), input.returnType().getName(), input.language(), true);
+                        RoutineType.FUNCTION.getName(), input.definition(), input.language(), input.returnType().getName(), true);
                 }
             });
     }
