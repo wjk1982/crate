@@ -37,7 +37,7 @@ import java.util.stream.Collectors;
 public class Functions {
 
     private final Map<String, FunctionResolver> functionResolvers;
-    private final AtomicReference< Map<String, FunctionResolver>> udfFunctionResolvers = new AtomicReference<>();
+    private final AtomicReference<Map<String, FunctionResolver>> udfFunctionResolvers = new AtomicReference<>();
 
     @Inject
     public Functions(Map<FunctionIdent, FunctionImplementation> functionImplementations,
@@ -47,7 +47,8 @@ public class Functions {
         udfFunctionResolvers.set(new HashMap<>());
     }
 
-    public Map<String, FunctionResolver> generateFunctionResolvers(Map<FunctionIdent, FunctionImplementation> functionImplementations) {
+    public Map<String, FunctionResolver> generateFunctionResolvers(
+        Map<FunctionIdent, FunctionImplementation> functionImplementations) {
         Multimap<String, Tuple<FunctionIdent, FunctionImplementation>> signatures = getSignatures(functionImplementations);
         return signatures.keys().stream()
             .distinct()
@@ -68,19 +69,20 @@ public class Functions {
     }
 
     /**
-     * <p>
-     * returns the functionImplementation for the given ident.
-     * </p>
-     * <p>
-     * same as {@link #get(FunctionIdent)} but will throw an UnsupportedOperationException
-     * if no implementation is found.
+     * Returns the function implementation for the given schema, function name and arguments.
+     *
+     * @param schema    The schema name.  The schema name is null for built-in functions.
+     * @param name      The function name.
+     * @param arguments The function arguments.
+     * @return The function implementation.
+     * @throws UnsupportedOperationException if the function implementation is not found.
      */
-    public FunctionImplementation getSafe(FunctionIdent ident)
+    public FunctionImplementation getSafe(@Nullable String schema, String name, List<DataType> arguments)
         throws IllegalArgumentException, UnsupportedOperationException {
         FunctionImplementation implementation = null;
         String exceptionMessage = null;
         try {
-            implementation = get(ident);
+            implementation = get(schema, name, arguments);
         } catch (IllegalArgumentException e) {
             if (e.getMessage() != null && !e.getMessage().isEmpty()) {
                 exceptionMessage = e.getMessage();
@@ -88,8 +90,8 @@ public class Functions {
         }
         if (implementation == null) {
             if (exceptionMessage == null) {
-                exceptionMessage = String.format(Locale.ENGLISH, "unknown function: %s(%s)", ident.name(),
-                    Joiner.on(", ").join(ident.argumentTypes()));
+                exceptionMessage = String.format(Locale.ENGLISH, "unknown function: %s(%s)", name,
+                    Joiner.on(", ").join(arguments));
             }
             throw new UnsupportedOperationException(exceptionMessage);
         }
@@ -97,21 +99,29 @@ public class Functions {
     }
 
     /**
-     * returns the functionImplementation for the given ident
-     * or null if nothing was found
+     * Returns the function implementation for the given schema, function name and arguments.
+     * <p>
+     * If the explicit schema name is not provided then the first function look-up will be done
+     * in the built-in functions. If the function is not found there, then the method will
+     * check the default schema for it.
+     * <p>
+     * In case when the schema name is given, the look-up is done directly for the schema name.
+     *
+     * @param schema    The schema name. The schema name is null for built-in functions.
+     * @param name      The function name.
+     * @param arguments The function arguments.
+     * @return a function implementation or null if nothing was found.
      */
     @Nullable
-    public FunctionImplementation get(FunctionIdent ident) throws IllegalArgumentException {
-        List<DataType> argTypes = ident.argumentTypes();
-        String name = ident.name();
-
-        FunctionImplementation function = resolveFunctionForArgumentTypes(argTypes, functionResolvers.get(name));
+    public FunctionImplementation get(@Nullable String schema, String name, List<DataType> arguments)
+        throws IllegalArgumentException {
+        FunctionImplementation function = resolveFunctionForArgumentTypes(arguments, functionResolvers.get(name));
         if (function != null) {
             return function;
         }
 
         // fallback to user-defined functions
-        return resolveFunctionForArgumentTypes(argTypes, udfFunctionResolvers.get().get(name));
+        return resolveFunctionForArgumentTypes(arguments, udfFunctionResolvers.get().get(name));
     }
 
     private FunctionImplementation resolveFunctionForArgumentTypes(List<DataType> types, FunctionResolver resolver) {

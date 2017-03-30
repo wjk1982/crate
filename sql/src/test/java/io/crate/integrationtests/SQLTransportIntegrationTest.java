@@ -411,7 +411,7 @@ public abstract class SQLTransportIntegrationTest extends ESIntegTestCase {
         assertBusy(() -> {
             Iterable<Functions> functions = internalCluster().getInstances(Functions.class);
             for (Functions function : functions) {
-                assertThat(function.get(new FunctionIdent(name, types)), Matchers.notNullValue());
+                assertThat(function.get(null, name, types), Matchers.notNullValue());
             }
         }, 20L, TimeUnit.SECONDS);
     }
@@ -420,7 +420,7 @@ public abstract class SQLTransportIntegrationTest extends ESIntegTestCase {
         assertBusy(() -> {
             Iterable<Functions> functions = internalCluster().getInstances(Functions.class);
             for (Functions function : functions) {
-                assertThat(function.get(new FunctionIdent(name, types)), Matchers.nullValue());
+                assertThat(function.get(null, name, types), Matchers.nullValue());
             }
         }, 20L, TimeUnit.SECONDS);
     }
