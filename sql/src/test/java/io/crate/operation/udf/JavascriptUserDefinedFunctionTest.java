@@ -32,6 +32,7 @@ import io.crate.analyze.FunctionArgumentDefinition;
 import io.crate.analyze.symbol.Literal;
 import io.crate.metadata.FunctionIdent;
 import io.crate.metadata.FunctionImplementation;
+import io.crate.metadata.Schemas;
 import io.crate.operation.scalar.AbstractScalarFunctionsTest;
 import io.crate.types.ArrayType;
 import io.crate.types.DataType;
@@ -59,21 +60,13 @@ public class JavascriptUserDefinedFunctionTest extends AbstractScalarFunctionsTe
 
     private Map<FunctionIdent, FunctionImplementation> functionImplementations = new HashMap<>();
 
-    private void registerUserDefinedFunction(String schema, String name, DataType returnType, List<DataType> types, String definition) {
-        UserDefinedFunctionMetaData udfMeta = new UserDefinedFunctionMetaData(
-            schema,
-            name,
-            types.stream().map(FunctionArgumentDefinition::of).collect(Collectors.toList()),
-            returnType,
-            JS,
-            definition
+    private void registerUserDefinedFunction(String name, DataType returnType, List<DataType> types, String definition) {
+        UserDefinedFunctionMetaData udfMeta = new UserDefinedFunctionMetaData("doc", name,
+            types.stream().map(FunctionArgumentDefinition::of).collect(Collectors.toList()), returnType, JS, definition
         );
         functionImplementations.put(new FunctionIdent(name, types), UserDefinedFunctionFactory.of(udfMeta));
-        functions.registerSchemaFunctionResolvers(functions.generateFunctionResolvers(functionImplementations));
-    }
-
-    private void registerUserDefinedFunction(String name, DataType returnType, List<DataType> types, String definition) {
-        registerUserDefinedFunction("doc", name, returnType, types, definition);
+        functions.registerSchemaFunctionResolvers(
+            Schemas.DEFAULT_SCHEMA_NAME, functions.generateFunctionResolvers(functionImplementations));
     }
 
     @After

@@ -398,7 +398,8 @@ public class InformationSchemaTest extends SQLTransportIntegrationTest {
             execute("create function substract_test(long, long, long) " +
                 "returns long language JAVASCRIPT " +
                 "as 'function substract_test(a, b, c) { return a - b - c; }'");
-            waitForFunctionCreatedOnAll("substract_test", ImmutableList.of(DataTypes.LONG, DataTypes.LONG, DataTypes.LONG));
+            waitForFunctionCreatedOnAll("doc", "substract_test",
+                ImmutableList.of(DataTypes.LONG, DataTypes.LONG, DataTypes.LONG));
 
             execute("select routine_name, routine_body, data_type, routine_definition" +
                 " from information_schema.routines " +

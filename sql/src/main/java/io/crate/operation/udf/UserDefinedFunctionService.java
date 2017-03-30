@@ -45,6 +45,7 @@ import java.util.List;
 import java.util.Map;
 
 import static io.crate.operation.udf.UserDefinedFunctionsMetaData.PROTO;
+import static java.util.stream.Collectors.groupingBy;
 import static java.util.stream.Collectors.toMap;
 
 @Singleton
@@ -206,11 +207,17 @@ public class UserDefinedFunctionService extends AbstractLifecycleComponent<UserD
             return;
         }
 
-        Map<FunctionIdent, FunctionImplementation> udfFunctions = newMetaData.functionsMetaData().stream()
+        functions.deregisterAllSchemaFunctions();
+        Map<String, Map<FunctionIdent, FunctionImplementation>> schemaFunctions = newMetaData.functionsMetaData().stream()
             .map(UserDefinedFunctionFactory::of)
-            .collect(toMap(f -> f.info().ident(), f -> f));
+            .collect(groupingBy(f -> f.info().ident().schema(), toMap(f -> f.info().ident(), f -> f)));
 
-        functions.registerSchemaFunctionResolvers(functions.generateFunctionResolvers(udfFunctions));
+        for (Map.Entry<String, Map<FunctionIdent, FunctionImplementation>> entry : schemaFunctions.entrySet()) {
+            functions.registerSchemaFunctionResolvers(
+                entry.getKey(),
+                functions.generateFunctionResolvers(entry.getValue())
+            );
+        }
     }
 
     static class RegisterUserDefinedFunctionRequest extends ClusterStateUpdateRequest<RegisterUserDefinedFunctionRequest> {

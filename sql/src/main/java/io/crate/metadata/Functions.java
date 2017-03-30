@@ -37,14 +37,14 @@ import java.util.stream.Collectors;
 public class Functions {
 
     private final Map<String, FunctionResolver> functionResolvers;
-    private final AtomicReference<Map<String, FunctionResolver>> udfFunctionResolvers = new AtomicReference<>();
+    private final AtomicReference<Map<String, Map<String, FunctionResolver>>> schemaFunctionResolvers = new AtomicReference<>();
 
     @Inject
     public Functions(Map<FunctionIdent, FunctionImplementation> functionImplementations,
                      Map<String, FunctionResolver> functionResolvers) {
         this.functionResolvers = Maps.newHashMap(functionResolvers);
         this.functionResolvers.putAll(generateFunctionResolvers(functionImplementations));
-        udfFunctionResolvers.set(new HashMap<>());
+        schemaFunctionResolvers.set(new HashMap<>());
     }
 
     public Map<String, FunctionResolver> generateFunctionResolvers(
@@ -64,8 +64,12 @@ public class Functions {
         return signatureMap;
     }
 
-    public void registerSchemaFunctionResolvers(Map<String, FunctionResolver> resolvers) {
-        udfFunctionResolvers.set(resolvers);
+    public void registerSchemaFunctionResolvers(String schema, Map<String, FunctionResolver> resolvers) {
+        schemaFunctionResolvers.get().put(schema, resolvers);
+    }
+
+    public void deregisterAllSchemaFunctions() {
+        schemaFunctionResolvers.get().clear();
     }
 
     /**
@@ -105,6 +109,11 @@ public class Functions {
      * in the built-in functions. If the function is not found there, then the method will
      * check the default schema for it.
      * <p>
+     * For example:
+     * foo()        -> built-in -> the default schema
+     * bar.foo()    -> in the "bar" schema
+     * <p>
+     * <p>
      * In case when the schema name is given, the look-up is done directly for the schema name.
      *
      * @param schema    The schema name. The schema name is null for built-in functions.
@@ -115,13 +124,30 @@ public class Functions {
     @Nullable
     public FunctionImplementation get(@Nullable String schema, String name, List<DataType> arguments)
         throws IllegalArgumentException {
-        FunctionImplementation function = resolveFunctionForArgumentTypes(arguments, functionResolvers.get(name));
-        if (function != null) {
-            return function;
+        // get a built-in function
+        if (schema == null) {
+            FunctionResolver dynamicResolver = functionResolvers.get(name);
+            FunctionImplementation func = resolveFunctionForArgumentTypes(arguments, dynamicResolver);
+            if (func != null) {
+                return func;
+            }
+            // fallback, check if the function with the same name was defined in the default schema
+            return getSchemaFunctionImplementation(Schemas.DEFAULT_SCHEMA_NAME, name, arguments);
+        } else {
+            // Get a user defined function from the given schema. The function must be
+            // assigned a certain schema. If no schema is provided, it belongs to the default schema.
+            return getSchemaFunctionImplementation(schema, name, arguments);
+        }
+    }
+
+    private FunctionImplementation getSchemaFunctionImplementation(String schema, String name, List<DataType> arguments) {
+        Map<String, FunctionResolver> schemaResolvers = schemaFunctionResolvers.get().get(schema);
+        if (schemaResolvers == null) {
+            return null;
         }
 
-        // fallback to user-defined functions
-        return resolveFunctionForArgumentTypes(arguments, udfFunctionResolvers.get().get(name));
+        FunctionResolver schemaResolver = schemaResolvers.get(name);
+        return resolveFunctionForArgumentTypes(arguments, schemaResolver);
     }
 
     private FunctionImplementation resolveFunctionForArgumentTypes(List<DataType> types, FunctionResolver resolver) {

@@ -43,7 +43,7 @@ public class UserDefinedFunctionFactory {
                     CompiledScript compiledScript = ((Compilable) JavaScriptUserDefinedFunction.ENGINE)
                         .compile(meta.definition);
                     return new JavaScriptUserDefinedFunction(
-                        new FunctionIdent(meta.name(), meta.argumentTypes()),
+                        new FunctionIdent(meta.schema(), meta.name(), meta.argumentTypes()),
                         meta.returnType,
                         compiledScript
                     );
