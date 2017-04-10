@@ -190,7 +190,9 @@ public class CopyStatementPlanner {
             statement.outputNames(),
             outputFormat);
 
-        Plan plan = context.planSubRelation(statement.subQueryRelation(), new ConsumerContext(context));
+        ConsumerContext consumerContext = new ConsumerContext(context);
+        consumerContext.disableFetchRewrite();
+        Plan plan = context.planSubRelation(statement.subQueryRelation(), consumerContext);
         if (plan == null) {
             return null;
         }
