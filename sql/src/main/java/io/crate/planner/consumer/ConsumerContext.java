@@ -33,6 +33,7 @@ public class ConsumerContext {
     private ValidationException validationException;
 
     private Integer requiredPageSize;
+    private boolean fetchRewriteIsDisabled = false;
 
     public ConsumerContext(Planner.Context plannerContext) {
         this.plannerContext = plannerContext;
@@ -60,5 +61,13 @@ public class ConsumerContext {
      */
     public Integer requiredPageSize() {
         return requiredPageSize;
+    }
+
+    public void disableFetchRewrite() {
+        fetchRewriteIsDisabled = true;
+    }
+
+    public boolean fetchRewriteDisabled() {
+        return fetchRewriteIsDisabled;
     }
 }
