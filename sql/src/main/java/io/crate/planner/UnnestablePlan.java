@@ -23,6 +23,7 @@
 package io.crate.planner;
 
 import io.crate.planner.distribution.DistributionInfo;
+import io.crate.planner.fetch.FetchPushDown;
 import io.crate.planner.projection.Projection;
 
 import javax.annotation.Nullable;
@@ -49,5 +50,10 @@ public abstract class UnnestablePlan implements Plan {
     @Override
     public void setDistributionInfo(DistributionInfo distributionInfo) {
         throw new UnsupportedOperationException("Cannot change distributionInfo on: " + getClass().getSimpleName());
+    }
+
+    @Override
+    public void setFetchDescription(FetchPushDown.PhaseAndProjection build) {
+        throw new UnsupportedOperationException("Cannot setFetchDescription on: " + getClass().getSimpleName());
     }
 }

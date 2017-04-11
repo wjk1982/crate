@@ -22,6 +22,7 @@
 
 package io.crate.planner;
 
+import io.crate.planner.fetch.FetchPushDown;
 import io.crate.types.DataType;
 
 import javax.annotation.Nullable;
@@ -84,4 +85,10 @@ public interface ResultDescription {
      * sorting
      */
     List<DataType> streamOutputs();
+
+    @Nullable
+    default FetchPushDown.PhaseAndProjection fetchDescription() {
+        return null;
+    }
+
 }

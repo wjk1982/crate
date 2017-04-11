@@ -22,6 +22,7 @@
 package io.crate.planner;
 
 import io.crate.planner.distribution.DistributionInfo;
+import io.crate.planner.fetch.FetchPushDown;
 import io.crate.planner.projection.Projection;
 
 import javax.annotation.Nullable;
@@ -54,4 +55,6 @@ public interface Plan {
      * Changes how the result will be distributed.
      */
     void setDistributionInfo(DistributionInfo distributionInfo);
+
+    void setFetchDescription(FetchPushDown.PhaseAndProjection fetchDescription);
 }

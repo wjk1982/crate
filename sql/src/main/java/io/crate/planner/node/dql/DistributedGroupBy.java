@@ -26,6 +26,7 @@ import io.crate.planner.PlanVisitor;
 import io.crate.planner.PositionalOrderBy;
 import io.crate.planner.ResultDescription;
 import io.crate.planner.distribution.DistributionInfo;
+import io.crate.planner.fetch.FetchPushDown;
 import io.crate.planner.projection.Projection;
 import io.crate.types.DataType;
 
@@ -110,6 +111,11 @@ public class DistributedGroupBy implements Plan, ResultDescription {
     @Override
     public void setDistributionInfo(DistributionInfo distributionInfo) {
         reducerMergeNode.distributionInfo(distributionInfo);
+    }
+
+    @Override
+    public void setFetchDescription(FetchPushDown.PhaseAndProjection build) {
+
     }
 
     @Override

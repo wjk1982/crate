@@ -27,6 +27,7 @@ import io.crate.planner.PlanVisitor;
 import io.crate.planner.PositionalOrderBy;
 import io.crate.planner.ResultDescription;
 import io.crate.planner.distribution.DistributionInfo;
+import io.crate.planner.fetch.FetchPushDown;
 import io.crate.planner.projection.Projection;
 import io.crate.types.DataType;
 
@@ -49,6 +50,7 @@ public class Collect implements Plan, ResultDescription {
 
     @Nullable
     private PositionalOrderBy orderBy;
+    private FetchPushDown.PhaseAndProjection fetchDescription;
 
     public Collect(CollectPhase collectPhase,
                    int limit,
@@ -110,6 +112,11 @@ public class Collect implements Plan, ResultDescription {
     }
 
     @Override
+    public void setFetchDescription(FetchPushDown.PhaseAndProjection fetchDescription) {
+        this.fetchDescription = fetchDescription;
+    }
+
+    @Override
     public Collection<String> nodeIds() {
         return collectPhase.nodeIds();
     }
@@ -148,5 +155,11 @@ public class Collect implements Plan, ResultDescription {
         }
         Projection lastProjection = projections.get(projections.size() - 1);
         return Symbols.extractTypes(lastProjection.outputs());
+    }
+
+    @Nullable
+    @Override
+    public FetchPushDown.PhaseAndProjection fetchDescription() {
+        return fetchDescription;
     }
 }

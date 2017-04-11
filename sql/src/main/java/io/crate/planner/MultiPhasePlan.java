@@ -24,6 +24,7 @@ package io.crate.planner;
 
 import io.crate.analyze.symbol.SelectSymbol;
 import io.crate.planner.distribution.DistributionInfo;
+import io.crate.planner.fetch.FetchPushDown;
 import io.crate.planner.projection.Projection;
 
 import javax.annotation.Nullable;
@@ -95,5 +96,10 @@ public class MultiPhasePlan implements Plan {
     @Override
     public void setDistributionInfo(DistributionInfo distributionInfo) {
         rootPlan.setDistributionInfo(distributionInfo);
+    }
+
+    @Override
+    public void setFetchDescription(FetchPushDown.PhaseAndProjection fetchDescription) {
+        rootPlan.setFetchDescription(fetchDescription);
     }
 }
