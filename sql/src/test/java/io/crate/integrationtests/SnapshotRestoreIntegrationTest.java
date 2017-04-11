@@ -374,4 +374,15 @@ public class SnapshotRestoreIntegrationTest extends SQLTransportIntegrationTest 
         execute("select table_schema || '.' || table_name from information_schema.tables where table_schema='doc'");
         assertThat(TestingHelpers.printedTable(response.rows()), is("doc.my_parted_1\n"));
     }
+
+    @Test
+    public void testRestoreConflictPartitionedTable() throws Exception {
+        createTable("parted", true);
+        createSnapshot(SNAPSHOT_NAME, "parted");
+        execute("drop table parted");
+        createTable("parted", true);
+
+        execute("RESTORE SNAPSHOT " + snapshotName() + " TABLE parted with (" +
+                "wait_for_completion=true)");
+    }
 }
