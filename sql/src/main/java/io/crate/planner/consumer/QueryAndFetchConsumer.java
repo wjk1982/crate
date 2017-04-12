@@ -34,7 +34,9 @@ import io.crate.exceptions.UnsupportedFeatureException;
 import io.crate.exceptions.VersionInvalidException;
 import io.crate.operation.predicate.MatchPredicate;
 import io.crate.planner.*;
+import io.crate.planner.fetch.FetchPushDown;
 import io.crate.planner.node.dql.Collect;
+import io.crate.planner.node.dql.QueryThenFetch;
 import io.crate.planner.node.dql.RoutedCollectPhase;
 import io.crate.planner.projection.Projection;
 import io.crate.planner.projection.TopNProjection;
@@ -63,14 +65,39 @@ public class QueryAndFetchConsumer implements Consumer {
 
         @Override
         public Plan visitQueriedDocTable(QueriedDocTable table, ConsumerContext context) {
-            if (table.querySpec().hasAggregates()) {
-                return null;
+            if (isNoSimpleSelect(table, context)) return null;
+
+            if (context.fetchRewriteDisabled()) {
+                return normalSelect(table, context);
+            }
+
+            FetchPushDown.Builder<QueriedDocTable> fetchPhaseBuilder = FetchPushDown.pushDown(table);
+            if (fetchPhaseBuilder == null) {
+                return normalSelect(table, context);
+            }
+            Planner.Context plannerContext = context.plannerContext();
+            Plan plan = Merge.ensureOnHandler(
+                normalSelect(fetchPhaseBuilder.replacedRelation(), context), plannerContext);
+            FetchPushDown.PhaseAndProjection phaseAndProjection = fetchPhaseBuilder.build(plannerContext);
+            plan.addProjection(
+                phaseAndProjection.projection,
+                null,
+                null,
+                phaseAndProjection.projection.outputs().size(),
+                null
+            );
+            return new QueryThenFetch(plan, phaseAndProjection.phase);
+        }
+
+        private boolean isNoSimpleSelect(QueriedDocTable table, ConsumerContext context) {
+            if (table.querySpec().hasAggregates() || table.querySpec().groupBy().isPresent()) {
+                return true;
             }
             if (table.querySpec().where().hasVersions()) {
                 context.validationException(new VersionInvalidException());
-                return null;
+                return true;
             }
-            return normalSelect(table, context);
+            return false;
         }
 
         @Override
@@ -124,7 +151,7 @@ public class QueryAndFetchConsumer implements Consumer {
             }
         }
 
-        private Plan normalSelect(QueriedTableRelation table, ConsumerContext context) {
+        private static Plan normalSelect(QueriedTableRelation table, ConsumerContext context) {
             QuerySpec querySpec = table.querySpec();
             Planner.Context plannerContext = context.plannerContext();
             /*

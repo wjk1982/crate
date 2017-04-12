@@ -25,7 +25,6 @@ package io.crate.planner.consumer;
 import io.crate.analyze.MultiSourceSelect;
 import io.crate.analyze.QuerySpec;
 import io.crate.analyze.relations.AnalyzedRelation;
-import io.crate.analyze.relations.QueriedDocTable;
 import io.crate.planner.Merge;
 import io.crate.planner.Plan;
 import io.crate.planner.Planner;
@@ -48,44 +47,11 @@ public final class FetchConsumer implements Consumer {
     private static class Visitor extends RelationPlanningVisitor {
 
         @Override
-        public Plan visitQueriedDocTable(QueriedDocTable table, ConsumerContext context) {
-            return createQueriedDocTablePlan(table, context);
-        }
-
-        @Override
         public Plan visitMultiSourceSelect(MultiSourceSelect multiSourceSelect, ConsumerContext context) {
             return createMSSPlan(multiSourceSelect, context);
         }
     }
 
-    private static Plan createQueriedDocTablePlan(QueriedDocTable table, ConsumerContext context) {
-        QuerySpec qs = table.querySpec();
-        if (context.fetchRewriteDisabled() || fetchIsNotApplicable(qs)) {
-            return null;
-        }
-        FetchPushDown.Builder fetchPhaseBuilder = FetchPushDown.pushDown(table);
-        if (fetchPhaseBuilder == null) {
-            return null;
-        }
-        AnalyzedRelation subRelation = fetchPhaseBuilder.replacedRelation();
-        Planner.Context plannerContext = context.plannerContext();
-        context.disableFetchRewrite(); // avoid fetch-consumer recursion
-        Plan plannedSubQuery = Merge.ensureOnHandler(
-            plannerContext.planSubRelation(subRelation, context),
-            plannerContext
-        );
-
-        // fetch phase and projection can only be build after the sub-plan was processed (shards/readers allocated)
-        FetchPushDown.PhaseAndProjection fetchPhaseAndProjection = fetchPhaseBuilder.build(plannerContext);
-        plannedSubQuery.addProjection(
-            fetchPhaseAndProjection.projection,
-            null,
-            null,
-            fetchPhaseAndProjection.projection.outputs().size(),
-            null);
-
-        return new QueryThenFetch(plannedSubQuery, fetchPhaseAndProjection.phase);
-    }
 
     private static Plan createMSSPlan(MultiSourceSelect mss, ConsumerContext context) {
         if (context.fetchRewriteDisabled() || fetchIsNotApplicable(mss.querySpec()) || mss.canBeFetched().isEmpty()) {
