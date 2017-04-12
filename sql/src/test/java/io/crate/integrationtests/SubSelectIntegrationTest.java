@@ -428,4 +428,17 @@ public class SubSelectIntegrationTest extends SQLTransportIntegrationTest {
                 "order by y desc limit 1");
         assertThat(TestingHelpers.printedTable(response.rows()), is("30| 40\n"));
     }
+
+    @Test
+    public void testSimpleSelectOnSubQueryWithWhereClause() throws Exception {
+        execute("create table t (x int, y int)");
+        ensureYellow();
+        execute("insert into t (x, y) values (10, 20), (30, 40), (50, 60)");
+        execute("refresh table t");
+
+        execute("select x, y from (" +
+                "   select x, y from t order by x limit 3) t " +
+                "where x = 30 order by y desc limit 2");
+        assertThat(TestingHelpers.printedTable(response.rows()), is("30| 40\n"));
+    }
 }

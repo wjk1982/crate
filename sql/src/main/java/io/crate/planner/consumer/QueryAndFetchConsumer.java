@@ -37,6 +37,7 @@ import io.crate.planner.fetch.FetchPushDown;
 import io.crate.planner.node.dql.Collect;
 import io.crate.planner.node.dql.QueryThenFetch;
 import io.crate.planner.node.dql.RoutedCollectPhase;
+import io.crate.planner.projection.FilterProjection;
 import io.crate.planner.projection.Projection;
 import io.crate.planner.projection.TopNProjection;
 import io.crate.planner.projection.builder.ProjectionBuilder;
@@ -110,6 +111,7 @@ public class QueryAndFetchConsumer implements Consumer {
                 plannerContext.planSubRelation(relation.subRelation(), context), plannerContext);
 
             Limits limits = plannerContext.getLimits(qs);
+            maybeAddFilterProjection(relation, plan);
             Projection topN = ProjectionBuilder.topNOrEval(
                 relation.subRelation().fields(),
                 qs.orderBy().orElse(null),
@@ -119,6 +121,15 @@ public class QueryAndFetchConsumer implements Consumer {
             );
             plan.addProjection(topN, null, null, qs.outputs().size(), null);
             return plan;
+        }
+    }
+
+    private static void maybeAddFilterProjection(QueriedSelectRelation relation, Plan plan) {
+        WhereClause whereClause = relation.querySpec().where();
+        if (whereClause.hasQuery() || whereClause.noMatch()) {
+            // FIXME: fields + whereClause contents don't match
+            FilterProjection filterProjection = ProjectionBuilder.filterProjection(relation.subRelation().fields(), whereClause);
+            plan.addProjection(filterProjection, null, null, null, null);
         }
     }
 
