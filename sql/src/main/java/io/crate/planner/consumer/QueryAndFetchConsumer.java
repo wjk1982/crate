@@ -33,11 +33,13 @@ import io.crate.collections.Lists2;
 import io.crate.exceptions.UnsupportedFeatureException;
 import io.crate.exceptions.VersionInvalidException;
 import io.crate.operation.predicate.MatchPredicate;
+import io.crate.operation.projectors.TopN;
 import io.crate.planner.*;
 import io.crate.planner.fetch.FetchPushDown;
 import io.crate.planner.node.dql.Collect;
 import io.crate.planner.node.dql.QueryThenFetch;
 import io.crate.planner.node.dql.RoutedCollectPhase;
+import io.crate.planner.projection.OrderedTopNProjection;
 import io.crate.planner.projection.Projection;
 import io.crate.planner.projection.TopNProjection;
 import io.crate.planner.projection.builder.ProjectionBuilder;
@@ -76,28 +78,8 @@ public class QueryAndFetchConsumer implements Consumer {
                 return normalSelect(table, context);
             }
             Planner.Context plannerContext = context.plannerContext();
-            Plan plan = Merge.ensureOnHandler(
-                normalSelect(fetchPhaseBuilder.replacedRelation(), context), plannerContext);
-            FetchPushDown.PhaseAndProjection phaseAndProjection = fetchPhaseBuilder.build(plannerContext);
-            plan.addProjection(
-                phaseAndProjection.projection,
-                null,
-                null,
-                phaseAndProjection.projection.outputs().size(),
-                null
-            );
-            return new QueryThenFetch(plan, phaseAndProjection.phase);
-        }
-
-        private boolean isNoSimpleSelect(QueriedDocTable table, ConsumerContext context) {
-            if (table.querySpec().hasAggregates() || table.querySpec().groupBy().isPresent()) {
-                return true;
-            }
-            if (table.querySpec().where().hasVersions()) {
-                context.validationException(new VersionInvalidException());
-                return true;
-            }
-            return false;
+            Plan plan = normalSelect(fetchPhaseBuilder.replacedRelation(), context);
+            return new PlanWithPendingFetch(plan, fetchPhaseBuilder.build(plannerContext));
         }
 
         @Override
@@ -119,19 +101,56 @@ public class QueryAndFetchConsumer implements Consumer {
                 return null;
             }
             Planner.Context plannerContext = context.plannerContext();
-            Plan plan = Merge.ensureOnHandler(
-                plannerContext.planSubRelation(relation.subRelation(), context), plannerContext);
-
+            Plan subPlan = plannerContext.planSubRelation(relation.subRelation(), context);
             Limits limits = plannerContext.getLimits(qs);
-            Projection topN = ProjectionBuilder.topNOrEval(
-                relation.subRelation().fields(),
-                qs.orderBy().orElse(null),
-                limits.offset(),
-                limits.finalLimit(),
-                qs.outputs()
-            );
-            plan.addProjection(topN, null, null, qs.outputs().size(), null);
-            return plan;
+
+            OrderBy orderBy = qs.orderBy().orElse(null);
+            if (subPlan instanceof PlanWithPendingFetch) {
+                PlanWithPendingFetch planWithPendingFetch = (PlanWithPendingFetch) subPlan;
+                Plan innerPlan = planWithPendingFetch.innerPlan();
+
+                if (orderBy == null) {
+                    // FIXME: If orderBy is null we could have rewritten the query - assert here that orderBy is not null and remove
+                    // this code?
+                    if (limits.finalLimit() == TopN.NO_LIMIT && limits.offset() == 0) {
+                        return Merge.applyFetch(planWithPendingFetch, plannerContext);
+                    }
+                    innerPlan = Merge.ensureOnHandler(innerPlan, plannerContext);
+                    TopNProjection topN = new TopNProjection(
+                        limits.finalLimit(),
+                        limits.offset(),
+                        InputColumn.fromTypes(innerPlan.resultDescription().streamOutputs()));
+                    innerPlan.addProjection(topN, null, null, null, null);
+                } else {
+                    innerPlan = Merge.ensureOnHandler(innerPlan, plannerContext);
+                    OrderedTopNProjection orderedTopNProjection = new OrderedTopNProjection(
+                        limits.finalLimit(),
+                        limits.offset(),
+                        InputColumn.fromTypes(innerPlan.resultDescription().streamOutputs()),
+                        Collections.singletonList(new InputColumn(0, null)), // FIXME
+                        orderBy.reverseFlags(),
+                        orderBy.nullsFirst()
+                    );
+
+                    innerPlan.addProjection(orderedTopNProjection, null, null, null, null);
+                    FetchPushDown.PhaseAndProjection phaseAndProjection = planWithPendingFetch.phaseAndProjection();
+                    innerPlan.addProjection(
+                        phaseAndProjection.projection, null, null, phaseAndProjection.projection.outputs().size(), null);
+                    return new QueryThenFetch(innerPlan, phaseAndProjection.phase);
+                }
+            } else {
+                subPlan = Merge.ensureOnHandler(subPlan, plannerContext);
+                Projection topN = ProjectionBuilder.topNOrEval(
+                    relation.subRelation().fields(),
+                    orderBy,
+                    limits.offset(),
+                    limits.finalLimit(),
+                    qs.outputs()
+                );
+                subPlan.addProjection(topN, null, null, qs.outputs().size(), null);
+            }
+
+            return subPlan;
         }
 
         private void ensureNoLuceneOnlyPredicates(Symbol query) {
@@ -205,5 +224,16 @@ public class QueryAndFetchConsumer implements Consumer {
                 PositionalOrderBy.of(optOrderBy.orElse(null), toCollect)
             );
         }
+    }
+
+    private static boolean isNoSimpleSelect(QueriedDocTable table, ConsumerContext context) {
+        if (table.querySpec().hasAggregates() || table.querySpec().groupBy().isPresent()) {
+            return true;
+        }
+        if (table.querySpec().where().hasVersions()) {
+            context.validationException(new VersionInvalidException());
+            return true;
+        }
+        return false;
     }
 }

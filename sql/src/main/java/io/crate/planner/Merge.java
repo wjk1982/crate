@@ -24,10 +24,13 @@ package io.crate.planner;
 
 import io.crate.operation.Paging;
 import io.crate.operation.projectors.TopN;
+import io.crate.planner.consumer.PlanWithPendingFetch;
 import io.crate.planner.distribution.DistributionInfo;
+import io.crate.planner.fetch.FetchPushDown;
 import io.crate.planner.node.ExecutionPhases;
 import io.crate.planner.node.dql.Collect;
 import io.crate.planner.node.dql.MergePhase;
+import io.crate.planner.node.dql.QueryThenFetch;
 import io.crate.planner.projection.Projection;
 import io.crate.planner.projection.builder.ProjectionBuilder;
 import io.crate.types.DataType;
@@ -60,6 +63,10 @@ public class Merge implements Plan, ResultDescription {
      *                    add a TopNProjection AFTER the projections.
      */
     public static Plan ensureOnHandler(Plan subPlan, Planner.Context plannerContext, List<Projection> projections) {
+        if (subPlan instanceof PlanWithPendingFetch) {
+            subPlan = applyFetch((PlanWithPendingFetch) subPlan, plannerContext);
+        }
+
         ResultDescription resultDescription = subPlan.resultDescription();
         assert resultDescription != null : "all plans must have a result description. Plan without: " + subPlan;
 
@@ -95,6 +102,19 @@ public class Merge implements Plan, ResultDescription {
             resultDescription.limit(),
             null
         );
+    }
+
+    public static Plan applyFetch(PlanWithPendingFetch pendingFetch, Planner.Context plannerContext) {
+        FetchPushDown.PhaseAndProjection phaseAndProjection = pendingFetch.phaseAndProjection();
+        Plan plan = ensureOnHandler(pendingFetch.innerPlan(), plannerContext);
+        plan.addProjection(
+            phaseAndProjection.projection,
+            null,
+            null,
+            phaseAndProjection.projection.outputs().size(),
+            null
+        );
+        return new QueryThenFetch(plan, phaseAndProjection.phase);
     }
 
     private static Collection<String> getHandlerNodeIds(Plan subPlan, Planner.Context plannerContext, ResultDescription resultDescription) {

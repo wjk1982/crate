@@ -55,7 +55,7 @@ public class MultiPhasePlan implements Plan {
         return new MultiPhasePlan(subPlan, dependencies);
     }
 
-    private MultiPhasePlan(Plan rootPlan, Map<Plan, SelectSymbol> dependencies) {
+    public MultiPhasePlan(Plan rootPlan, Map<Plan, SelectSymbol> dependencies) {
         this.rootPlan = rootPlan;
         this.dependencies = dependencies;
     }

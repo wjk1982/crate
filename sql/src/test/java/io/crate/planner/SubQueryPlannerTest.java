@@ -47,9 +47,8 @@ public class SubQueryPlannerTest extends CrateDummyClusterServiceUnitTest {
         assertThat(collect.collectPhase().projections(), Matchers.contains(
             instanceOf(TopNProjection.class),
             instanceOf(TopNProjection.class),
-            // TODO: fetch should happen after the OrderedTopNProjection
-            instanceOf(FetchProjection.class),
-            instanceOf(OrderedTopNProjection.class)
+            instanceOf(OrderedTopNProjection.class),
+            instanceOf(FetchProjection.class)
         ));
     }
 }

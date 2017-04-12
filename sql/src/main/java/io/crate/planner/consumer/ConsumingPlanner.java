@@ -65,7 +65,10 @@ public class ConsumingPlanner {
         for (Consumer consumer : consumers) {
             Plan plan = consumer.consume(relation, consumerContext);
             if (plan != null) {
-                return MultiPhasePlan.createIfNeeded(plan, subQueries);
+                if (subQueries.isEmpty()) {
+                    return plan;
+                }
+                return new MultiPhasePlan(Merge.ensureOnHandler(plan, consumerContext.plannerContext()), subQueries);
             }
         }
         ValidationException validationException = consumerContext.validationException();
