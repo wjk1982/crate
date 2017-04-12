@@ -103,4 +103,10 @@ test {
             systemProperty k, v
         }
     }
+
+    // Create output resource directories even if source dirs are empty
+    doFirst {
+        new File(project.buildDir.path + '/resources/main').mkdirs()
+        new File(project.buildDir.path + '/resources/test').mkdirs()
+    }
 }

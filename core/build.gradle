@@ -45,8 +45,3 @@ task getVersion(dependsOn: 'classes') {
         logger.quiet("version: " + version)
     }
 }
-
-
-sourceSets {
-    test.output.resourcesDir = null
-}
