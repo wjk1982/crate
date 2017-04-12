@@ -33,4 +33,8 @@ public interface FetchDecider {
      * This is an approximation, if it returns true it may not be possible to really fetch anything.
      */
     boolean tryFetchRewrite();
+
+    default boolean finalizeFetch() {
+        return true;
+    }
 }

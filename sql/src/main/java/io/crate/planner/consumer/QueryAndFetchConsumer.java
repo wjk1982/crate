@@ -66,7 +66,8 @@ public class QueryAndFetchConsumer implements Consumer {
             if (!isSimpleSelect(table.querySpec(), context)) {
                 return null;
             }
-            if (!context.fetchDecider().tryFetchRewrite()) {
+            FetchDecider fetchDecider = context.fetchDecider();
+            if (!fetchDecider.tryFetchRewrite()) {
                 return normalSelect(table, context);
             }
             FetchPushDown.Builder<QueriedDocTable> fetchPhaseBuilder = FetchPushDown.pushDown(table);
@@ -74,17 +75,21 @@ public class QueryAndFetchConsumer implements Consumer {
                 return normalSelect(table, context);
             }
             Planner.Context plannerContext = context.plannerContext();
-            Plan plan = Merge.ensureOnHandler(
-                normalSelect(fetchPhaseBuilder.replacedRelation(), context), plannerContext);
+            Collect collect = normalSelect(fetchPhaseBuilder.replacedRelation(), context);
             FetchPushDown.PhaseAndProjection fetchPhaseAndProjection = fetchPhaseBuilder.build(plannerContext);
-            plan.addProjection(
-                fetchPhaseAndProjection.projection,
-                null,
-                null,
-                fetchPhaseAndProjection.projection.outputs().size(),
-                null
-            );
-            return new QueryThenFetch(plan, fetchPhaseAndProjection.phase);
+            if (fetchDecider.finalizeFetch()) {
+                Plan plan = Merge.ensureOnHandler(collect, plannerContext);
+                plan.addProjection(
+                    fetchPhaseAndProjection.projection,
+                    null,
+                    null,
+                    fetchPhaseAndProjection.projection.outputs().size(),
+                    null
+                );
+                return new QueryThenFetch(plan, fetchPhaseAndProjection.phase);
+            } else {
+                return PlanWithPendingFetch(collect, fetchPhaseAndProjection);
+            }
         }
 
         @Override
