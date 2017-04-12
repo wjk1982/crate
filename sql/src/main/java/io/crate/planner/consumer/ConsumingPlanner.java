@@ -41,7 +41,6 @@ public class ConsumingPlanner {
     private final List<Consumer> consumers = new ArrayList<>();
 
     public ConsumingPlanner(ClusterService clusterService, Functions functions, TableStats tableStats) {
-        consumers.add(new FetchConsumer());
         consumers.add(new NonDistributedGroupByConsumer(functions));
         consumers.add(new ReduceOnCollectorGroupByConsumer(functions));
         consumers.add(new DistributedGroupByConsumer(functions));
