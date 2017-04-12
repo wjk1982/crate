@@ -38,7 +38,10 @@ import io.crate.planner.Planner;
 import io.crate.planner.projection.builder.ProjectionBuilder;
 import io.crate.planner.projection.builder.SplitPoints;
 
-import java.util.*;
+import java.util.Iterator;
+import java.util.List;
+import java.util.ListIterator;
+import java.util.Optional;
 
 class MultiSourceAggregationConsumer implements Consumer {
 
@@ -72,6 +75,7 @@ class MultiSourceAggregationConsumer implements Consumer {
             SplitPoints splitPoints = SplitPoints.create(qs);
             removeAggregationsAndLimitsFromMSS(multiSourceSelect, splitPoints);
             Planner.Context plannerContext = context.plannerContext();
+            context.setFetchDecider(FetchDecider.NEVER);
             Plan plan = plannerContext.planSubRelation(multiSourceSelect, context);
 
             // whereClause is already handled within the plan, no need to add additional FilterProjection via addAggregations
