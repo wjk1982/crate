@@ -24,6 +24,7 @@ package io.crate.integrationtests;
 
 import com.google.common.base.Joiner;
 import io.crate.action.sql.SQLActionException;
+import io.crate.exceptions.TableAlreadyExistsException;
 import io.crate.testing.TestingHelpers;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.cluster.SnapshotsInProgress;
@@ -376,13 +377,35 @@ public class SnapshotRestoreIntegrationTest extends SQLTransportIntegrationTest 
     }
 
     @Test
-    public void testRestoreConflictPartitionedTable() throws Exception {
-        createTable("parted", true);
-        createSnapshot(SNAPSHOT_NAME, "parted");
-        execute("drop table parted");
-        createTable("parted", true);
+    public void testRestoreConflictingPartitionedTableUsingAll() throws Exception {
+        expectedException.expect(TableAlreadyExistsException.class);
+        execute("create table employees(section integer, name string) partitioned by (section)");
+        ensureYellow();
+        execute("insert into employees (section, name, position) values (1, 'Helmut', 'CEO'), (2, 'Günter', 'BOSS')");
+        execute("refresh table employees");
+        execute("CREATE SNAPSHOT " + snapshotName() + " ALL WITH (wait_for_completion=true)");
+        execute("drop table employees");
+        ensureYellow();
 
-        execute("RESTORE SNAPSHOT " + snapshotName() + " TABLE parted with (" +
-                "wait_for_completion=true)");
+        execute("create table employees(age integer, position string) partitioned by (age)");
+        ensureYellow();
+
+        execute("RESTORE SNAPSHOT " + snapshotName() + " ALL with (wait_for_completion=true)");
+    }
+
+    @Test
+    public void testRestoreEmptyPartitionedTableUsingALL() throws Exception {
+        execute("create table employees(section integer, name string) partitioned by (section)");
+        ensureYellow();
+        execute("refresh table employees");
+
+        execute("CREATE SNAPSHOT " + snapshotName() + " ALL WITH (wait_for_completion=true)");
+        execute("drop table employees");
+        ensureYellow();
+        execute("RESTORE SNAPSHOT " + snapshotName() + " ALL with (wait_for_completion=true)");
+        ensureYellow();
+
+        execute("select table_schema || '.' || table_name from information_schema.tables where table_schema='doc'");
+        assertThat(TestingHelpers.printedTable(response.rows()), is("doc.employees\n"));
     }
 }
