@@ -41,6 +41,7 @@ import io.crate.planner.projection.Projection;
 import io.crate.planner.projection.TopNProjection;
 import io.crate.planner.projection.builder.ProjectionBuilder;
 
+import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.Collections;
 import java.util.List;
@@ -74,22 +75,7 @@ public class QueryAndFetchConsumer implements Consumer {
             if (fetchPhaseBuilder == null) {
                 return normalSelect(table, context);
             }
-            Planner.Context plannerContext = context.plannerContext();
-            Collect collect = normalSelect(fetchPhaseBuilder.replacedRelation(), context);
-            FetchPushDown.PhaseAndProjection fetchPhaseAndProjection = fetchPhaseBuilder.build(plannerContext);
-            if (fetchDecider.finalizeFetch()) {
-                Plan plan = Merge.ensureOnHandler(collect, plannerContext);
-                plan.addProjection(
-                    fetchPhaseAndProjection.projection,
-                    null,
-                    null,
-                    fetchPhaseAndProjection.projection.outputs().size(),
-                    null
-                );
-                return new QueryThenFetch(plan, fetchPhaseAndProjection.phase);
-            } else {
-                return PlanWithPendingFetch(collect, fetchPhaseAndProjection);
-            }
+            return createPlanWithFetch(context, fetchPhaseBuilder);
         }
 
         @Override
@@ -107,24 +93,97 @@ public class QueryAndFetchConsumer implements Consumer {
         @Override
         public Plan visitQueriedSelectRelation(QueriedSelectRelation relation, ConsumerContext context) {
             QuerySpec qs = relation.querySpec();
-            if (qs.hasAggregates() || qs.groupBy().isPresent()) {
+            if (!isSimpleSelect(qs, context)) {
                 return null;
             }
-            Planner.Context plannerContext = context.plannerContext();
-            Plan plan = Merge.ensureOnHandler(
-                plannerContext.planSubRelation(relation.subRelation(), context), plannerContext);
-
-            Limits limits = plannerContext.getLimits(qs);
-            Projection topN = ProjectionBuilder.topNOrEval(
-                relation.subRelation().fields(),
-                qs.orderBy().orElse(null),
-                limits.offset(),
-                limits.finalLimit(),
-                qs.outputs()
-            );
-            plan.addProjection(topN, null, null, qs.outputs().size(), null);
-            return plan;
+            return subSelectPlan(relation, context);
         }
+    }
+
+    private static Plan createPlanWithFetch(ConsumerContext context,
+                                            @Nonnull FetchPushDown.Builder<QueriedDocTable> fetchPhaseBuilder) {
+        Planner.Context plannerContext = context.plannerContext();
+        Collect collect = normalSelect(fetchPhaseBuilder.replacedRelation(), context);
+        FetchPushDown.PhaseAndProjection fetchPhaseAndProjection = fetchPhaseBuilder.build(plannerContext);
+        if (context.fetchDecider().finalizeFetch()) {
+            Plan plan = Merge.ensureOnHandler(collect, plannerContext);
+            plan.addProjection(
+                fetchPhaseAndProjection.projection,
+                null,
+                null,
+                fetchPhaseAndProjection.projection.outputs().size(),
+                null
+            );
+            return new QueryThenFetch(plan, fetchPhaseAndProjection.phase);
+        } else {
+            return new PlanWithPendingFetch(collect, fetchPhaseAndProjection);
+        }
+    }
+
+    /**
+     * Create a plan that utilizes fetch if possible.
+     * So the plan is optimized for cases where there are limits/orderBy in the subRelations.
+     * (This should be the case, as other queries could have been rewritten)
+     */
+    private static Plan subSelectPlan(QueriedSelectRelation relation, ConsumerContext context) {
+        FetchDecider parentFetchDecider = context.fetchDecider();
+        if (parentFetchDecider.finalizeFetch() == true) {
+            return planSubSelectWithoutFetchPropagation(relation, context);
+        }
+        throw new UnsupportedOperationException("NYI");
+        /*
+        Planner.Context plannerContext = context.plannerContext();
+        Plan subPlan = plannerContext.planSubRelation(relation.subRelation(), context);
+        // TODO: could there be a MultiPhasePlan injected here?
+        if (subPlan instanceof PlanWithPendingFetch) {
+            return tryToPropagateFetch((PlanWithPendingFetch) subPlan, parentFetchDecider);
+        }
+        return applyLimitsAndOrderOntoSubPlan(
+            relation,
+            plannerContext,
+            Merge.ensureOnHandler(subPlan, plannerContext));
+            */
+    }
+
+    private static Plan tryToPropagateFetch(PlanWithPendingFetch subPlan, FetchDecider parentFetchDecider) {
+        return subPlan;
+    }
+
+    private static Plan planSubSelectWithoutFetchPropagation(QueriedSelectRelation relation, ConsumerContext context) {
+        Planner.Context plannerContext = context.plannerContext();
+        context.setFetchDecider(FetchDecider.ALWAYS_WITHOUT_FINALIZE);
+        Plan subPlan = plannerContext.planSubRelation(relation.subRelation(), context);
+        if (subPlan instanceof PlanWithPendingFetch) {
+            PlanWithPendingFetch planWithPendingFetch = (PlanWithPendingFetch) subPlan;
+            subPlan = Merge.ensureOnHandler(planWithPendingFetch, plannerContext);
+
+            FetchPushDown.PhaseAndProjection phaseAndProjection = planWithPendingFetch.fetchPhaseAndProjection();
+            subPlan.addProjection(
+                phaseAndProjection.projection,
+                null,
+                null,
+                phaseAndProjection.projection.outputs().size(),
+                null
+            );
+            applyLimitsAndOrderOntoSubPlan(relation, plannerContext, new QueryThenFetch(subPlan, phaseAndProjection.phase));
+        }
+        return applyLimitsAndOrderOntoSubPlan(relation, plannerContext, subPlan);
+    }
+
+    private static Plan applyLimitsAndOrderOntoSubPlan(QueriedSelectRelation relation,
+                                                       Planner.Context plannerContext,
+                                                       Plan subPlan) {
+        QuerySpec qs = relation.querySpec();
+        Limits limits = plannerContext.getLimits(qs);
+        Projection topN = ProjectionBuilder.topNOrEval(
+            relation.subRelation().fields(),
+            qs.orderBy().orElse(null),
+            limits.offset(),
+            limits.finalLimit(),
+            qs.outputs()
+        );
+        subPlan.addProjection(topN, null, null, qs.outputs().size(), null);
+        return subPlan;
     }
 
     private static boolean isSimpleSelect(QuerySpec querySpec, ConsumerContext context) {
